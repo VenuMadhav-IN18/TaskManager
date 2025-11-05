@@ -1,244 +1,203 @@
-class TaskManager {
-      constructor() {
-        this.tasks = this.loadTasks();
-        this.currentFilter = 'all';
-        this.init();
-      }
+let tasks = loadTasks();
+let currentFilter = 'all';
 
-      init() {
-        this.renderTasks();
-        this.setupEventListeners();
-        this.updateStatistics();
-      }
+// ---- Load & Save ----
+function loadTasks() {
+  const saved = localStorage.getItem('tasks');
+  return saved ? JSON.parse(saved) : [];
+}
 
-      loadTasks() {
-        const saved = localStorage.getItem('tasks');
-        return saved ? JSON.parse(saved) : [];
-      }
+function saveTasks() {
+  localStorage.setItem('tasks', JSON.stringify(tasks));
+  updateStatistics();
+}
 
-      saveTasks() {
-        localStorage.setItem('tasks', JSON.stringify(this.tasks));
-        this.updateStatistics();
-      }
+// ---- Add ----
+function addTask(title) {
+  const task = {
+    id: Date.now(),
+    title: title.trim(),
+    completed: false,
+    createdAt: new Date().toISOString()
+  };
+  tasks.unshift(task);
+  saveTasks();
+  renderTasks();
+}
 
-      addTask(title) {
-        const task = {
-          id: Date.now(),
-          title: title.trim(),
-          completed: false,
-          createdAt: new Date().toISOString()
-        };
-        
-        this.tasks.unshift(task);
-        this.saveTasks();
-        this.renderTasks();
-      }
+// ---- Toggle Complete ----
+function toggleTask(id) {
+  const task = tasks.find(t => t.id === id);
+  if (task) {
+    task.completed = !task.completed;
+    saveTasks();
+    renderTasks();
+  }
+}
 
-      toggleTask(id) {
-        const task = this.tasks.find(t => t.id === id);
-        if (task) {
-          task.completed = !task.completed;
-          this.saveTasks();
-          this.renderTasks();
-        }
-      }
+// ---- Delete ----
+function deleteTask(id) {
+  if (confirm('Are you sure you want to delete this task?')) {
+    tasks = tasks.filter(t => t.id !== id);
+    saveTasks();
+    renderTasks();
+  }
+}
 
-      deleteTask(id) {
-        if (confirm('Are you sure you want to delete this task?')) {
-          this.tasks = this.tasks.filter(t => t.id !== id);
-          this.saveTasks();
-          this.renderTasks();
-        }
-      }
+// ---- Edit ----
+function editTask(id, newTitle) {
+  const task = tasks.find(t => t.id === id);
+  if (task && newTitle.trim()) {
+    task.title = newTitle.trim();
+    saveTasks();
+    renderTasks();
+  }
+}
 
-      editTask(id, newTitle) {
-        const task = this.tasks.find(t => t.id === id);
-        if (task && newTitle.trim()) {
-          task.title = newTitle.trim();
-          this.saveTasks();
-          this.renderTasks();
-        }
-      }
+// ---- Bulk Actions ----
+function deleteCompletedTasks() {
+  if (confirm('Delete all completed tasks?')) {
+    tasks = tasks.filter(t => !t.completed);
+    saveTasks();
+    renderTasks();
+  }
+}
 
-      deleteCompletedTasks() {
-        if (confirm('Delete all completed tasks?')) {
-          this.tasks = this.tasks.filter(t => !t.completed);
-          this.saveTasks();
-          this.renderTasks();
-        }
-      }
+function markAllAsCompleted() {
+  tasks.forEach(task => task.completed = true);
+  saveTasks();
+  renderTasks();
+}
 
-      markAllAsCompleted() {
-        this.tasks.forEach(task => {
-          task.completed = true;
-        });
-        this.saveTasks();
-        this.renderTasks();
-      }
+// ---- Filters ----
+function setFilter(filter) {
+  currentFilter = filter;
+  document.querySelectorAll('[data-filter]').forEach(btn => btn.classList.remove('active'));
+  document.querySelector(`[data-filter="${filter}"]`).classList.add('active');
+  renderTasks();
+}
 
-      setFilter(filter) {
-        this.currentFilter = filter;
-        document.querySelectorAll('[data-filter]').forEach(btn => {
-          btn.classList.remove('active');
-        });
-        document.querySelector(`[data-filter="${filter}"]`).classList.add('active');
-        this.renderTasks();
-      }
+function getFilteredTasks() {
+  switch (currentFilter) {
+    case 'completed': return tasks.filter(t => t.completed);
+    case 'pending': return tasks.filter(t => !t.completed);
+    default: return tasks;
+  }
+}
 
-      getFilteredTasks() {
-        switch (this.currentFilter) {
-          case 'completed':
-            return this.tasks.filter(t => t.completed);
-          case 'pending':
-            return this.tasks.filter(t => !t.completed);
-          default:
-            return this.tasks;
-        }
-      }
+// ---- Stats ----
+function updateStatistics() {
+  const total = tasks.length;
+  const completed = tasks.filter(t => t.completed).length;
+  const pending = total - completed;
 
-      updateStatistics() {
-        const total = this.tasks.length;
-        const completed = this.tasks.filter(t => t.completed).length;
-        const pending = total - completed;
+  document.getElementById('totalTasks').textContent = total;
+  document.getElementById('completedTasks').textContent = completed;
+  document.getElementById('pendingTasks').textContent = pending;
 
-        document.getElementById('totalTasks').textContent = total;
-        document.getElementById('completedTasks').textContent = completed;
-        document.getElementById('pendingTasks').textContent = pending;
+  const bulkActions = document.getElementById('bulkActions');
+  bulkActions.style.display = total > 0 ? 'flex' : 'none';
+}
 
-        // Show/hide bulk actions
-        const bulkActions = document.getElementById('bulkActions');
-        bulkActions.style.display = total > 0 ? 'flex' : 'none';
-      }
+// ---- Render ----
+function renderTasks() {
+  const tasksList = document.getElementById('tasksList');
+  const filtered = getFilteredTasks();
 
-      renderTasks() {
-        const tasksList = document.getElementById('tasksList');
-        const filteredTasks = this.getFilteredTasks();
+  if (filtered.length === 0) {
+    let msg = 'No tasks found.';
+    if (currentFilter === 'completed') msg = 'No completed tasks.';
+    if (currentFilter === 'pending') msg = 'No pending tasks.';
+    if (currentFilter === 'all' && tasks.length === 0) msg = 'No tasks yet. Add your first task above!';
+    tasksList.innerHTML = `<div class="text-center text-muted py-4">${msg}</div>`;
+    return;
+  }
 
-        if (filteredTasks.length === 0) {
-          let message = 'No tasks found.';
-          if (this.currentFilter === 'completed') message = 'No completed tasks.';
-          if (this.currentFilter === 'pending') message = 'No pending tasks.';
-          if (this.currentFilter === 'all' && this.tasks.length === 0) message = 'No tasks yet. Add your first task above!';
-          
-          tasksList.innerHTML = `<div class="text-center text-muted py-4">${message}</div>`;
-          return;
-        }
-
-        tasksList.innerHTML = filteredTasks.map(task => `
-          <div class="task-item border rounded p-3 mb-2 ${task.completed ? 'completed bg-light' : ''}" data-id="${task.id}">
-            <div class="d-flex align-items-center justify-content-between">
-              <div class="d-flex align-items-center flex-grow-1">
-                <input 
-                  type="checkbox" 
-                  class="form-check-input me-3" 
-                  ${task.completed ? 'checked' : ''}
-                  onchange="taskManager.toggleTask(${task.id})"
-                >
-                <div class="flex-grow-1">
-                  <span class="task-title">${this.escapeHtml(task.title)}</span>
-                  <small class="text-muted d-block">Created: ${new Date(task.createdAt).toLocaleDateString()}</small>
-                </div>
-              </div>
-              <div class="btn-group">
-                <button class="btn btn-outline-primary btn-sm" onclick="taskManager.startEdit(${task.id})">
-                  ✏️
-                </button>
-                <button class="btn btn-outline-danger btn-sm" onclick="taskManager.deleteTask(${task.id})">
-                  🗑️
-                </button>
-              </div>
-            </div>
-            <div class="edit-form mt-2" id="edit-form-${task.id}" style="display: none;">
-              <div class="input-group">
-                <input type="text" class="form-control" id="edit-input-${task.id}" value="${this.escapeHtml(task.title)}">
-                <button class="btn btn-success btn-sm" onclick="taskManager.saveEdit(${task.id})">Save</button>
-                <button class="btn btn-secondary btn-sm" onclick="taskManager.cancelEdit(${task.id})">Cancel</button>
-              </div>
-            </div>
+  tasksList.innerHTML = filtered.map(task => `
+    <div class="task-item border rounded p-3 mb-2 ${task.completed ? 'completed bg-light' : ''}" data-id="${task.id}">
+      <div class="d-flex align-items-center justify-content-between">
+        <div class="d-flex align-items-center flex-grow-1">
+          <input 
+            type="checkbox" 
+            class="form-check-input me-3" 
+            ${task.completed ? 'checked' : ''} 
+            onchange="toggleTask(${task.id})">
+          <div class="flex-grow-1">
+            <span class="task-title">${escapeHtml(task.title)}</span>
+            <small class="text-muted d-block">Created: ${new Date(task.createdAt).toLocaleDateString()}</small>
           </div>
-        `).join('');
-      }
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-outline-primary btn-sm" onclick="startEdit(${task.id})">✏️</button>
+          <button class="btn btn-outline-danger btn-sm" onclick="deleteTask(${task.id})">🗑️</button>
+        </div>
+      </div>
 
-      startEdit(id) {
-        // Hide all other edit forms
-        document.querySelectorAll('.edit-form').forEach(form => {
-          form.style.display = 'none';
-        });
-        
-        const editForm = document.getElementById(`edit-form-${id}`);
-        const editInput = document.getElementById(`edit-input-${id}`);
-        
-        if (editForm && editInput) {
-          editForm.style.display = 'block';
-          editInput.focus();
-          editInput.select();
-        }
-      }
+      <div class="edit-form mt-2" id="edit-form-${task.id}" style="display: none;">
+        <div class="input-group">
+          <input type="text" class="form-control" id="edit-input-${task.id}" value="${escapeHtml(task.title)}">
+          <button class="btn btn-success btn-sm" onclick="saveEdit(${task.id})">Save</button>
+          <button class="btn btn-secondary btn-sm" onclick="cancelEdit(${task.id})">Cancel</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
 
-      saveEdit(id) {
-        const editInput = document.getElementById(`edit-input-${id}`);
-        if (editInput) {
-          this.editTask(id, editInput.value);
-        }
-      }
+// ---- Edit Actions ----
+function startEdit(id) {
+  document.querySelectorAll('.edit-form').forEach(form => form.style.display = 'none');
+  const editForm = document.getElementById(`edit-form-${id}`);
+  const editInput = document.getElementById(`edit-input-${id}`);
+  if (editForm && editInput) {
+    editForm.style.display = 'block';
+    editInput.focus();
+    editInput.select();
+  }
+}
 
-      cancelEdit(id) {
-        const editForm = document.getElementById(`edit-form-${id}`);
-        if (editForm) {
-          editForm.style.display = 'none';
-        }
-      }
+function saveEdit(id) {
+  const editInput = document.getElementById(`edit-input-${id}`);
+  if (editInput) editTask(id, editInput.value);
+}
 
-      escapeHtml(unsafe) {
-        return unsafe
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-          .replace(/"/g, "&quot;")
-          .replace(/'/g, "&#039;");
-      }
+function cancelEdit(id) {
+  const editForm = document.getElementById(`edit-form-${id}`);
+  if (editForm) editForm.style.display = 'none';
+}
 
-      setupEventListeners() {
-        // Add task form
-        document.getElementById('taskForm').addEventListener('submit', (e) => {
-          e.preventDefault();
-          const input = document.getElementById('taskInput');
-          const title = input.value.trim();
-          
-          if (title) {
-            this.addTask(title);
-            input.value = '';
-            input.focus();
-          }
-        });
+// ---- Utility ----
+function escapeHtml(str) {
+  return str.replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+}
 
-        // Filter buttons
-        document.querySelectorAll('[data-filter]').forEach(btn => {
-          btn.addEventListener('click', (e) => {
-            this.setFilter(e.target.dataset.filter);
-          });
-        });
+// ---- Events ----
+document.addEventListener('DOMContentLoaded', () => {
+  renderTasks();
+  updateStatistics();
 
-        // Keyboard shortcuts
-        document.addEventListener('keydown', (e) => {
-          if (e.ctrlKey && e.key === 'Enter') {
-            document.getElementById('taskForm').dispatchEvent(new Event('submit'));
-          }
-        });
-      }
+  document.getElementById('taskForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const input = document.getElementById('taskInput');
+    const title = input.value.trim();
+    if (title) {
+      addTask(title);
+      input.value = '';
+      input.focus();
     }
+  });
 
-    // Initialize Task Manager when page loads
-    let taskManager;
-    document.addEventListener('DOMContentLoaded', () => {
-      taskManager = new TaskManager();
-    });
+  document.querySelectorAll('[data-filter]').forEach(btn => {
+    btn.addEventListener('click', e => setFilter(e.target.dataset.filter));
+  });
 
-    // Global functions for onclick events
-    function deleteCompletedTasks() {
-      taskManager.deleteCompletedTasks();
+  document.addEventListener('keydown', e => {
+    if (e.ctrlKey && e.key === 'Enter') {
+      document.getElementById('taskForm').dispatchEvent(new Event('submit'));
     }
-
-    function markAllAsCompleted() {
-      taskManager.markAllAsCompleted();
-    }
+  });
+});
